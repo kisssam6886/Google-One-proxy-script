@@ -17,15 +17,9 @@ gvinstall(){
     fi
     rm -f gost_3.0.0_linux_arm64.tar.gz README* LICENSE*
 
-    # 设置端口
-    read -p "设置 Socks5 端口（回车跳过为10000-65535之间的随机端口）：" socks_port
-    if [ -z "$socks_port" ]; then
-        socks_port=$(shuf -i 10000-65535 -n 1)
-    fi
-    read -p "设置 Http 端口（回车跳过为10000-65535之间的随机端口）：" http_port
-    if [ -z "$http_port" ]; then
-        http_port=$(shuf -i 10000-65535 -n 1)
-    fi
+    # 设置常用端口（固定为1080和8080）
+    socks_port=1080
+    http_port=8080
 
     echo "你设置的 Socks5 端口：$socks_port 和 Http 端口：$http_port"
     echo "注意：当前配置无用户名和密码认证（测试版）"
@@ -81,18 +75,29 @@ gvinstall(){
     echo "cd $HOME" >> gost.sh
     echo "pkill -9 gost" >> gost.sh
     echo "screen -wipe" >> gost.sh
-    echo "screen -ls | grep -v '\.' | awk '{print \$1}' | xargs -r kill -9" >> gost.sh
+    echo "screen -ls | grep -E '[0-9]+\.myscreen' | awk '{print \$1}' | xargs -r screen -X -S quit" >> gost.sh
     echo "screen -dmS myscreen bash -c './gost -C config.yaml'" >> gost.sh
     chmod +x gost.sh || { echo "权限设置失败"; exit 1; }
 
-    # 启动代理服务，清理旧进程并等待启动
+    # 启动代理服务，清理旧进程并尝试两种后台运行方式
     echo "启动代理服务..."
     pkill -9 gost
     sleep 1
     screen -wipe
-    screen -ls | grep -v '\.' | awk '{print $1}' | xargs -r kill -9
+    screen -ls | grep -E '[0-9]+\.myscreen' | awk '{print $1}' | xargs -r screen -X -S quit
+
+    # 优先使用 screen 启动（推荐）
     ./gost.sh
-    sleep 3  # 延长等待时间，确保启动完成
+    sleep 2  # 等待 screen 启动
+
+    # 备用：使用 & 后台运行（如果 screen 失败）
+    if ! lsof -i :"$socks_port" >/dev/null 2>/dev/null; then
+        echo "Screen 启动失败，尝试使用 & 后台运行..."
+        cd $HOME && ./gost -C config.yaml &
+        sleep 2
+    fi
+
+    sleep 3  # 确保启动完成
 
     # 获取Google VPN提供的公网IP，优先IPv4
     echo "获取Google VPN公网IP..."
@@ -135,7 +140,7 @@ gvinstall(){
 
 uninstall(){
     pkill -9 gost
-    screen -ls | grep -v '\.' | awk '{print $1}' | xargs -r kill -9
+    screen -ls | grep -E '[0-9]+\.myscreen' | awk '{print $1}' | xargs -r screen -X -S quit
     rm -f gost config.yaml
     echo "卸载完毕"
 }
