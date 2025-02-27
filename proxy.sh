@@ -1,10 +1,7 @@
 #!/bin/bash
 
 gvinstall(){
-    # 安装依赖并检查
-    pkg install -y screen curl ip || { echo "依赖安装失败，请检查网络或包名"; exit 1; }
-    
-    # 下载Gost并验证
+    pkg install -y screen curl iproute2 || { echo "依赖安装失败，请检查网络或包名"; exit 1; }
     if [ ! -e gost ]; then
         echo "下载中……"
         curl -L -o gost_3.0.0_linux_arm64.tar.gz --retry 3 --retry-delay 5 --max-time 60 https://raw.githubusercontent.com/yonggekkk/google_vpn_proxy/main/gost_3.0.0_linux_arm64.tar.gz || {
@@ -17,7 +14,6 @@ gvinstall(){
     fi
     rm -f gost_3.0.0_linux_arm64.tar.gz README* LICENSE*
 
-    # 设置端口
     read -p "设置 Socks5 端口（回车跳过为10000-65535之间的随机端口）：" socks_port
     if [ -z "$socks_port" ]; then
         socks_port=$(shuf -i 10000-65535 -n 1)
@@ -27,7 +23,6 @@ gvinstall(){
         http_port=$(shuf -i 10000-65535 -n 1)
     fi
 
-    # 设置认证信息
     read -p "设置代理认证用户名（回车跳过为随机生成）： " username
     if [ -z "$username" ]; then
         username=$(openssl rand -hex 4 2>/dev/null || cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
@@ -41,7 +36,6 @@ gvinstall(){
     echo "认证信息 - 用户名：$username，密码：$password"
     sleep 2
 
-    # 生成配置文件
     echo 'services:' > config.yaml
     echo '  - name: service-socks5' >> config.yaml
     echo "    addr: \":$socks_port\"" >> config.yaml
@@ -84,7 +78,6 @@ gvinstall(){
     echo '        ttl: 5m0s' >> config.yaml
     echo '        async: true' >> config.yaml
 
-    # 动态设置路径
     if [ -d "/data/data/com.termux/files/usr" ]; then
         PROFILE_DIR="/data/data/com.termux/files/usr/etc/profile.d"
     else
@@ -93,14 +86,12 @@ gvinstall(){
     fi
     cd "$PROFILE_DIR" || { echo "无法切换目录"; exit 1; }
 
-    # 配置后台运行
     echo '#!/data/data/com.termux/files/usr/bin/bash' > gost.sh
     echo 'screen -wipe' >> gost.sh
     echo "screen -ls | grep Detached | cut -d. -f1 | awk '{print \$1}' | xargs kill" >> gost.sh
     echo "screen -dmS myscreen bash -c './gost -C config.yaml'" >> gost.sh
     chmod +x gost.sh || { echo "权限设置失败"; exit 1; }
 
-    # 获取IP
     public_ip=$(curl -s ifconfig.me || curl -s icanhazip.com || echo "无法获取公网IP")
     local_ip=$(ip addr show wlan0 | grep "inet " | awk '{print $2}' | cut -d'/' -f1 || echo "无法获取本地IP")
 
