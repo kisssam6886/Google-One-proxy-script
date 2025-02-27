@@ -76,12 +76,12 @@ gvinstall(){
     fi
     cd "$PROFILE_DIR" || { echo "无法切换目录"; exit 1; }
 
-    # 生成启动脚本，确保路径正确
+    # 生成启动脚本，确保路径正确并清理旧进程
     echo '#!/data/data/com.termux/files/usr/bin/bash' > gost.sh
     echo "cd $HOME" >> gost.sh
     echo "pkill -9 gost" >> gost.sh
     echo "screen -wipe" >> gost.sh
-    echo "screen -ls | grep Detached | cut -d. -f1 | awk '{print \$1}' | xargs kill" >> gost.sh
+    echo "screen -ls | grep -v '\.' | awk '{print \$1}' | xargs -r kill -9" >> gost.sh
     echo "screen -dmS myscreen bash -c './gost -C config.yaml'" >> gost.sh
     chmod +x gost.sh || { echo "权限设置失败"; exit 1; }
 
@@ -90,14 +90,14 @@ gvinstall(){
     pkill -9 gost
     sleep 1
     screen -wipe
-    screen -ls | grep Detached | cut -d. -f1 | awk '{print $1}' | xargs kill
+    screen -ls | grep -v '\.' | awk '{print $1}' | xargs -r kill -9
     ./gost.sh
     sleep 3  # 延长等待时间，确保启动完成
 
     # 获取Google VPN提供的公网IP，优先IPv4
     echo "获取Google VPN公网IP..."
     public_ip=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || curl -6 -s ifconfig.me || echo "无法获取Google VPN公网IP，请确保VPN已启用")
-    local_ip=$(ip addr show | grep -E "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | grep -v "127.0.0.1" | awk '{print $2}' | cut -d'/' -f1 | head -n 1 || echo "无法获取本地IP")
+    local_ip=$(ip addr show 2>/dev/null | grep -E "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | grep -v "127.0.0.1" | awk '{print $2}' | cut -d'/' -f1 | head -n 1 || echo "无法获取本地IP")
 
     echo "安装完毕"
     echo "快捷方式：bash gv.sh  可查看Socks5端口与Http端口"
@@ -135,7 +135,7 @@ gvinstall(){
 
 uninstall(){
     pkill -9 gost
-    screen -ls | grep Detached | cut -d. -f1 | awk '{print $1}' | xargs kill
+    screen -ls | grep -v '\.' | awk '{print $1}' | xargs -r kill -9
     rm -f gost config.yaml
     echo "卸载完毕"
 }
