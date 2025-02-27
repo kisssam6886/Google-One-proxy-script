@@ -92,9 +92,8 @@ gvinstall(){
     echo "screen -dmS myscreen bash -c './gost -C config.yaml'" >> gost.sh
     chmod +x gost.sh || { echo "权限设置失败"; exit 1; }
 
-    # 优先获取IPv4地址
     public_ip=$(curl -4 -s ifconfig.me || curl -4 -s icanhazip.com || curl -4 -s ipinfo.io/ip || echo "无法获取IPv4公网IP，可能您的网络仅支持IPv6")
-    local_ip=$(ip addr show wlan0 | grep "inet " | awk '{print $2}' | cut -d'/' -f1 || echo "无法获取本地IP")
+    local_ip=$(ip addr show | grep -E "inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | grep -v "127.0.0.1" | awk '{print $2}' | cut -d'/' -f1 | head -n 1 || echo "无法获取本地IP")
 
     echo "安装完毕"
     echo "快捷方式：bash gv.sh  可查看Socks5端口与Http端口"
@@ -110,10 +109,20 @@ gvinstall(){
     fi
     echo "------------------------------------------------"
     echo "提示："
-    echo "1. 若使用移动数据且有IPv4，代理已可从外部访问。"
-    echo "2. 若使用家庭宽带，需在路由器上将$socks_port和$http_port转发到$local_ip。"
+    echo "1. 若使用VPN（如Google VPN One），代理已通过$public_ip可从外部访问，无需端口映射。"
+    echo "2. 若未使用VPN且使用家庭宽带，需在路由器上将$socks_port和$http_port转发到$local_ip。"
     echo "3. HTTP认证不安全，建议优先使用Socks5。"
-    echo "4. 若显示‘无法获取IPv4’，请检查网络设置或禁用VPN后再试。"
+    echo "4. 若无法外部访问，检查VPN是否允许传入连接或端口是否被防火墙阻挡。"
+    if command -v ss >/dev/null && ss -tuln | grep -q "$socks_port"; then
+        echo "Socks5代理正在运行：$public_ip:$socks_port"
+    else
+        echo "警告：Socks5代理未启动，请检查gost是否运行（可能需要root权限）。"
+    fi
+    if command -v ss >/dev/null && ss -tuln | grep -q "$http_port"; then
+        echo "HTTP代理正在运行：$public_ip:$http_port"
+    else
+        echo "警告：HTTP代理未启动，请检查gost是否运行（可能需要root权限）。"
+    fi
     echo "警告：暴露代理到互联网有风险，请确保密码安全。"
     sleep 2
     exit
